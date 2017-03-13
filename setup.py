@@ -14,6 +14,14 @@ package_data = {'': ['*.tmpl',
 
 data_files = []
 
+
+if os.name == 'nt':
+    install_reqs = ['appdirs', 'colorama>=0.3.3', 'jinja2',
+                        'six']
+else:
+    install_reqs = ['appdirs', 'colorama>=0.3.3', 'sh>=1.10', 'jinja2',
+                        'six']
+
 # By specifying every file manually, package_data will be able to
 # include them in binary distributions. Note that we have to add
 # everything as a 'pythonforandroid' rule, using '' apparently doesn't
@@ -34,38 +42,41 @@ recursively_include(package_data, 'pythonforandroid/recipes',
                      '*.mk', '*.jam', ])
 recursively_include(package_data, 'pythonforandroid/bootstraps',
                     ['*.properties', '*.xml', '*.java', '*.tmpl', '*.txt', '*.png',
-                     '*.mk', '*.c', '*.h', '*.py', '*.sh', '*.jpg', '*.aidl', ])
+                     '*.mk', '*.c', '*.h', '*.py', '*.sh', '*.jpg', '*.aidl',
+                     '*.gradle', ])
 recursively_include(package_data, 'pythonforandroid/bootstraps',
                     ['sdl-config', ])
+recursively_include(package_data, 'pythonforandroid/bootstraps/webview',
+                    ['*.html', ])
 recursively_include(package_data, 'pythonforandroid',
                     ['liblink', 'biglink', 'liblink.sh'])
 
 setup(name='python-for-android',
-      version='0.3',
+      version='0.4',
       description='Android APK packager for Python scripts and apps',
       author='The Kivy team',
       author_email='kivy-dev@googlegroups.com',
       url='https://github.com/kivy/python-for-android', 
       license='MIT', 
-      install_requires=['appdirs', 'colorama>0.3', 'sh>=1.10', 'jinja2', 'argparse',
-                        'six'],
+      install_requires=install_reqs,
       entry_points={
           'console_scripts': [
               'python-for-android = pythonforandroid.toolchain:main',
               'p4a = pythonforandroid.toolchain:main',
               ],
           'distutils.commands': [
-              'bdist_apk = pythonforandroid.bdist_apk:BdistAPK',
+              'apk = pythonforandroid.bdistapk:BdistAPK',
               ],
           },
       classifiers = [
-          'Development Status :: 3 - Alpha',
+          'Development Status :: 4 - Beta',
           'Intended Audience :: Developers',
           'License :: OSI Approved :: MIT License',
           'Operating System :: Microsoft :: Windows',
           'Operating System :: OS Independent',
           'Operating System :: POSIX :: Linux',
           'Operating System :: MacOS :: MacOS X',
+          'Operating System :: Android',
           'Programming Language :: C',
           'Programming Language :: Python :: 2',
           'Programming Language :: Python :: 3',

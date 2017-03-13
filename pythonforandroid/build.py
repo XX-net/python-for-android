@@ -8,7 +8,6 @@ import glob
 import sys
 import re
 import sh
-from appdirs import user_data_dir
 
 from pythonforandroid.util import (ensure_dir, current_directory)
 from pythonforandroid.logger import (info, warning, error, info_notify,
@@ -34,7 +33,6 @@ class Context(object):
     libs_dir = None  # where Android libs are cached after build but
                      # before being placed in dists
     aars_dir = None
-    javaclass_dir = None
 
     ccache = None  # whether to use ccache
     cython = None  # the cython interpreter name
@@ -46,6 +44,8 @@ class Context(object):
     bootstrap_build_dir = None
 
     recipe_build_order = None  # Will hold the list of all built recipes
+
+    symlink_java_src = False # If True, will symlink instead of copying during build
 
     @property
     def packages_path(self):
@@ -88,19 +88,22 @@ class Context(object):
         dir = join(self.python_installs_dir, self.bootstrap.distribution.name)
         return dir
 
-    def setup_dirs(self):
+    def setup_dirs(self, storage_dir):
         '''Calculates all the storage and build dirs, and makes sure
         the directories exist where necessary.'''
-        self.root_dir = realpath(dirname(__file__))
-
-        # AND: TODO: Allow the user to set the build_dir
-        self.storage_dir = user_data_dir('python-for-android')
+        self.storage_dir = expanduser(storage_dir)
+        if ' ' in self.storage_dir:
+            raise ValueError('storage dir path cannot contain spaces, please '
+                             'specify a path with --storage-dir')
         self.build_dir = join(self.storage_dir, 'build')
         self.dist_dir = join(self.storage_dir, 'dists')
 
+    def ensure_dirs(self):
         ensure_dir(self.storage_dir)
         ensure_dir(self.build_dir)
         ensure_dir(self.dist_dir)
+        ensure_dir(join(self.build_dir, 'bootstrap_builds'))
+        ensure_dir(join(self.build_dir, 'other_builds'))
 
     @property
     def android_api(self):
@@ -119,7 +122,7 @@ class Context(object):
     def ndk_ver(self):
         '''The version of the NDK being used for compilation.'''
         if self._ndk_ver is None:
-            raise ValueError('Tried to access android_api but it has not '
+            raise ValueError('Tried to access ndk_ver but it has not '
                              'been set - this should not happen, something '
                              'went wrong!')
         return self._ndk_ver
@@ -132,7 +135,7 @@ class Context(object):
     def sdk_dir(self):
         '''The path to the Android SDK.'''
         if self._sdk_dir is None:
-            raise ValueError('Tried to access android_api but it has not '
+            raise ValueError('Tried to access sdk_dir but it has not '
                              'been set - this should not happen, something '
                              'went wrong!')
         return self._sdk_dir
@@ -145,7 +148,7 @@ class Context(object):
     def ndk_dir(self):
         '''The path to the Android NDK.'''
         if self._ndk_dir is None:
-            raise ValueError('Tried to access android_api but it has not '
+            raise ValueError('Tried to access ndk_dir but it has not '
                              'been set - this should not happen, something '
                              'went wrong!')
         return self._ndk_dir
@@ -162,6 +165,8 @@ class Context(object):
         ..warning:: This *must* be called before trying any build stuff
 
         '''
+
+        self.ensure_dirs()
 
         if self._build_env_prepared:
             return
@@ -182,6 +187,8 @@ class Context(object):
             #                # for debug tests of p4a
             possible_dirs = glob.glob(expanduser(join(
                 '~', '.buildozer', 'android', 'platform', 'android-sdk-*')))
+            possible_dirs = [d for d in possible_dirs if not
+                             (d.endswith('.bz2') or d.endswith('.gz'))]
             if possible_dirs:
                 info('Found possible SDK dirs in buildozer dir: {}'.format(
                     ', '.join([d.split(os.sep)[-1] for d in possible_dirs])))
@@ -310,6 +317,7 @@ class Context(object):
                             'need to manually set the NDK ver.')
         if ndk_ver is None:
             warning('Android NDK version could not be found, exiting.')
+            exit(1)
         self.ndk_ver = ndk_ver
 
         info('Using {} NDK {}'.format(self.ndk.capitalize(), self.ndk_ver))
@@ -348,6 +356,7 @@ class Context(object):
         arch = self.archs[0]
         platform_dir = arch.platform_dir
         toolchain_prefix = arch.toolchain_prefix
+        toolchain_version = None
         self.ndk_platform = join(
             self.ndk_dir,
             'platforms',
@@ -434,9 +443,6 @@ class Context(object):
         self.local_recipes = None
         self.copy_libs = False
 
-        # root of the toolchain
-        self.setup_dirs()
-
         # this list should contain all Archs, it is pruned later
         self.archs = (
             ArchARM(self),
@@ -445,9 +451,7 @@ class Context(object):
             ArchAarch_64(self),
             )
 
-        ensure_dir(join(self.build_dir, 'bootstrap_builds'))
-        ensure_dir(join(self.build_dir, 'other_builds'))
-        # other_builds: where everything else is built
+        self.root_dir = realpath(dirname(__file__))
 
         # remove the most obvious flags that can break the compilation
         self.env.pop("LDFLAGS", None)
@@ -565,7 +569,7 @@ def build_recipes(build_order, python_modules, ctx):
         # 4) biglink everything
         # AND: Should make this optional
         info_main('# Biglinking object files')
-        if not ctx.python_recipe.from_crystax:
+        if not ctx.python_recipe or not ctx.python_recipe.from_crystax:
             biglink(ctx, arch)
         else:
             info('NDK is crystax, skipping biglink (will this work?)')
@@ -583,7 +587,7 @@ def build_recipes(build_order, python_modules, ctx):
 
 
 def run_pymodules_install(ctx, modules):
-    modules = filter(ctx.not_has_package, modules)
+    modules = list(filter(ctx.not_has_package, modules))
 
     if not modules:
         info('There are no Python modules to install, skipping')
@@ -837,6 +841,5 @@ def copylibs_function(soname, objs_paths, extra_link_dirs=[], env=None):
                             '\n\t'.join(needed_libs))
 
     print('Copying libraries')
-    cp = sh.cp.bake('-t', dest)
     for lib in sofiles:
-        shprint(cp, lib)
+        shprint(sh.cp, lib, dest)

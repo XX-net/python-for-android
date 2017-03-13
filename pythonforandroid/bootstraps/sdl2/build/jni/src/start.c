@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
   if (dir_exists("lib")) {
     /* If we built our own python, set up the paths correctly */
     LOGP("Setting up python from ANDROID_PRIVATE");
-    PyRun_SimpleString("private = posix.environ['ANDROID_PRIVATE']\n"
+    PyRun_SimpleString("private = posix.environ['ANDROID_APP_PATH']\n"
                        "argument = posix.environ['ANDROID_ARGUMENT']\n"
                        "sys.path[:] = [ \n"
                        "    private + '/lib/python27.zip', \n"
@@ -302,6 +302,7 @@ JNIEXPORT void JNICALL Java_org_kivy_android_PythonService_nativeStart(
 
   setenv("ANDROID_PRIVATE", android_private, 1);
   setenv("ANDROID_ARGUMENT", android_argument, 1);
+  setenv("ANDROID_APP_PATH", android_argument, 1);
   setenv("ANDROID_ENTRYPOINT", service_entrypoint, 1);
   setenv("PYTHONOPTIMIZE", "2", 1);
   setenv("PYTHON_NAME", python_name, 1);
