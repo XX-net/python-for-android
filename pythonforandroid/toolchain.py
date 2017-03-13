@@ -5,8 +5,15 @@ Tool for packaging Python apps for Android
 
 This module defines the entry point for command line and programmatic use.
 """
-
 from __future__ import print_function
+
+import sys
+import os
+
+current_path = os.path.dirname(os.path.abspath(__file__))
+root_path = os.path.abspath( os.path.join(current_path, os.pardir))
+sys.path.append(root_path)
+
 
 def check_python_dependencies():
     # Check if the Python requirements are installed. This appears
@@ -591,7 +598,7 @@ class ToolchainCL(object):
                     'Asked to clean "{}" but this argument is not '
                     'recognised'.format(component)))
             component_clean_methods[component](args)
-            
+
 
     def clean_all(self, args):
         '''Delete all build components; the package cache, package builds,
